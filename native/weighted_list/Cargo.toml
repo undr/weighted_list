@@ -1,0 +1,13 @@
+[package]
+name = "weighted_list"
+version = "0.1.0"
+authors = []
+edition = "2021"
+
+[lib]
+name = "weighted_list"
+crate-type = ["cdylib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+rustler = "0.36.2"
