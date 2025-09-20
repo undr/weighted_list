@@ -13,7 +13,7 @@ struct TableResource(Table);
 impl Resource for TableResource {}
 
 #[rustler::nif]
-fn setup<'a>(env: Env<'a>, values: Vec<u32>, weights: Vec<u32>) -> NifResult<Term<'a>> {
+fn setup<'a>(env: Env<'a>, values: Vec<u32>, weights: Vec<u64>) -> NifResult<Term<'a>> {
     match Table::build(values, weights) {
         Some(table) => Ok(ResourceArc::new(TableResource(table)).encode(env)),
         None => Err(RustlerError::BadArg),

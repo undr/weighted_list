@@ -10,7 +10,7 @@ pub struct Table {
 }
 
 impl Table {
-    pub fn build(values: Vec<u32>, weights: Vec<u32>) -> Option<Table> {
+    pub fn build(values: Vec<u32>, weights: Vec<u64>) -> Option<Table> {
         Some(Builder::new(values, weights).build())
     }
 
@@ -64,18 +64,18 @@ impl Table {
 
 struct Builder {
     values: Vec<u32>,
-    weights: Vec<u32>,
+    weights: Vec<u64>,
 }
 
 impl Builder {
-    fn new(values: Vec<u32>, weights: Vec<u32>) -> Builder {
-        let table_len = weights.len() as u32;
+    fn new(values: Vec<u32>, weights: Vec<u64>) -> Builder {
+        let table_len = weights.len() as u64;
 
         // Process that the mean of weights does not become a float value
         let ws = weights
             .iter()
             .map(|w| w * table_len)
-            .collect::<Vec<u32>>();
+            .collect::<Vec<u64>>();
 
         Builder { weights: ws, values: values }
     }
@@ -95,13 +95,13 @@ impl Builder {
     }
 
     /// Calculates the sum of `weights`.
-    fn sum(&self) -> u32 {
+    fn sum(&self) -> u64 {
         self.weights.iter().fold(0, |acc, cur| acc + cur)
     }
 
     /// Calculates the mean of `weights`.
-    fn mean(&self) -> u32 {
-        self.sum() / self.weights.len() as u32
+    fn mean(&self) -> u64 {
+        self.sum() / self.weights.len() as u64
     }
 
     /// Returns the tables of aliases and probabilities.
@@ -139,7 +139,7 @@ impl Builder {
     /// Divide the values of `weights` based on the mean of them.
     ///
     /// The tail value is a weight and head is its index.
-    fn separate_weight(&self) -> (Vec<(usize, u32)>, Vec<(usize, u32)>) {
+    fn separate_weight(&self) -> (Vec<(usize, u64)>, Vec<(usize, u64)>) {
         let mut below_vec = Vec::with_capacity(self.weights.len());
         let mut above_vec = Vec::with_capacity(self.weights.len());
         for (i, w) in self.weights.iter().enumerate() {
