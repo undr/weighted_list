@@ -27,3 +27,4 @@ weighted_list-*.tar
 
 # Rust binary artifacts
 /target/
+/priv/native/

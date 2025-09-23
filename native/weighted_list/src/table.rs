@@ -1,22 +1,25 @@
 use serde::{Deserialize, Serialize};
+// use rustler::{Term};
+
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Default)]
-pub struct Table {
-    values: Vec<u32>,
+pub struct Table<T: Clone> {
+    pub values: Vec<T>,
     // Alias to another index
-    aliases: Vec<usize>,
+    pub aliases: Vec<usize>,
     // Probability for whether to output the index attached to `aliases`.
-    probs: Vec<f32>,
+    pub probs: Vec<f32>,
 }
 
-impl Table {
-    pub fn build(values: Vec<u32>, weights: Vec<u64>) -> Option<Table> {
-        Some(Builder::new(values, weights).build())
+impl<T: Clone> Table<T> {
+    pub fn build(values: Vec<T>, weights: Vec<u64>) -> Option<Table<T>> {
+        let (aliases, probs) = Builder::new(weights).build();
+        Some(Table::<T>::new(values, aliases, probs))
     }
 
     // Creates a new instance of [`Table`].
-    pub fn new(values: Vec<u32>, aliases: Vec<usize>, probs: Vec<f32>) -> Table {
-        Table {
+    pub fn new(values: Vec<T>, aliases: Vec<usize>, probs: Vec<f32>) -> Table<T> {
+        Table::<T> {
             values: values,
             aliases: aliases,
             probs: probs,
@@ -27,8 +30,8 @@ impl Table {
         self.values.len()
     }
 
-    pub fn get_values(&self) -> Vec<u32> {
-        self.values.clone().to_vec()
+    pub fn get_values(&self) -> Vec<T> {
+      self.values.clone().to_vec()
     }
 
     pub fn get_probs(&self) -> Vec<f32> {
@@ -39,9 +42,9 @@ impl Table {
         self.aliases.clone().to_vec()
     }
 
-    pub fn get(&self, idx: u32, rnd: f32) -> Option<u32> {
+    pub fn get(&self, idx: u32, rnd: f32) -> Option<T> {
         match self.get_idx(idx, rnd) {
-            Some(widx) => self.values.get(widx as usize).copied(),
+            Some(widx) => self.values.get(widx as usize).cloned(),
             None => None,
         }
     }
@@ -62,13 +65,10 @@ impl Table {
     }
 }
 
-struct Builder {
-    values: Vec<u32>,
-    weights: Vec<u64>,
-}
+struct Builder(Vec<u64>);
 
 impl Builder {
-    fn new(values: Vec<u32>, weights: Vec<u64>) -> Builder {
+    fn new(weights: Vec<u64>) -> Builder {
         let table_len = weights.len() as u64;
 
         // Process that the mean of weights does not become a float value
@@ -77,41 +77,39 @@ impl Builder {
             .map(|w| w * table_len)
             .collect::<Vec<u64>>();
 
-        Builder { weights: ws, values: values }
+        Builder(ws)
     }
 
-    pub fn build(&self) -> Table {
-        let table_len = self.weights.len();
-        let values = self.values.clone().to_vec();
+    pub fn build(&self) -> (Vec<usize>, Vec<f32>) {
+        let table_len = self.0.len();
 
         if self.sum() == 0 {
-            // Returns WalkerTable that performs unweighted random sampling.
-            return Table::new(values, vec![0; table_len], vec![0.0; table_len]);
+            // Returns data for unweighted random sampling.
+            return (vec![0; table_len], vec![0.0; table_len]);
         }
 
-        let (aliases, probs) = self.calc_table();
-
-        Table::new(values, aliases, probs)
+        self.calc_table()
     }
 
     /// Calculates the sum of `weights`.
     fn sum(&self) -> u64 {
-        self.weights.iter().fold(0, |acc, cur| acc + cur)
+        self.0.iter().fold(0, |acc, cur| acc + cur)
     }
 
     /// Calculates the mean of `weights`.
     fn mean(&self) -> u64 {
-        self.sum() / self.weights.len() as u64
+        self.sum() / self.0.len() as u64
     }
 
     /// Returns the tables of aliases and probabilities.
     fn calc_table(&self) -> (Vec<usize>, Vec<f32>) {
-        let table_len = self.weights.len();
+        let table_len = self.0.len();
         let (mut below_vec, mut above_vec) = self.separate_weight();
         let mean = self.mean();
 
         let mut aliases = vec![0; table_len];
         let mut probs = vec![0.0; table_len];
+
         loop {
             match below_vec.pop() {
                 Some(below) => {
@@ -140,9 +138,9 @@ impl Builder {
     ///
     /// The tail value is a weight and head is its index.
     fn separate_weight(&self) -> (Vec<(usize, u64)>, Vec<(usize, u64)>) {
-        let mut below_vec = Vec::with_capacity(self.weights.len());
-        let mut above_vec = Vec::with_capacity(self.weights.len());
-        for (i, w) in self.weights.iter().enumerate() {
+        let mut below_vec = Vec::with_capacity(self.0.len());
+        let mut above_vec = Vec::with_capacity(self.0.len());
+        for (i, w) in self.0.iter().enumerate() {
             if *w <= self.mean() {
                 below_vec.push((i, *w));
             } else {
@@ -153,7 +151,6 @@ impl Builder {
     }
 }
 
-
 #[cfg(test)]
 mod table_test {
     use crate::table::Table;
@@ -162,9 +159,9 @@ mod table_test {
     fn make_table_from_u32() {
         let values = vec![12, 17, 19, 12, 14, 18, 11, 13, 16, 15];
         let weights = vec![2, 7, 9, 2, 4, 8, 1, 3, 6, 5];
-        let w_table = Table::build(values, weights).unwrap();
+        let w_table = Table::<u32>::build(values.clone(), weights).unwrap();
 
-        let expected = Table::new(
+        let expected = Table::<u32>::new(
             vec![12, 17, 19, 12, 14, 18, 11, 13, 16, 15],
             vec![2, 1, 1, 2, 2, 2, 5, 9, 5, 8],
             vec![
@@ -181,16 +178,17 @@ mod table_test {
             ],
         );
 
-        assert_eq!(w_table, expected)
+        assert_eq!(w_table, expected);
+        assert_eq!(w_table.values, values)
     }
 
     #[test]
     fn make_table_when_sum_is_zero() {
         let values = vec![0; 5];
         let weights = vec![0; 5];
-        let w_table = Table::build(values, weights).unwrap();
+        let w_table = Table::<u32>::build(values, weights).unwrap();
 
-        let expected = Table::new(vec![0; 5], vec![0; 5], vec![0.0; 5]);
+        let expected = Table::<u32>::new(vec![0; 5], vec![0; 5], vec![0.0; 5]);
 
         assert_eq!(w_table, expected)
     }
