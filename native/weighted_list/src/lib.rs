@@ -4,17 +4,50 @@ use crate::table::Table;
 
 use rustler::{Encoder, NifResult, Term, Env, ResourceArc, Resource, Atom};
 use rustler::Error as RustlerError;
+use rustler::types::list::ListIterator;
 
 // use std::collections::HashMap;
 
-struct TableResource(Table);
+#[derive(Debug, Clone)]
+pub enum PrimitiveValue {
+    UInt32(u32),
+    Float32(f32),
+    Utf8(Option<String>),
+}
+
+impl Encoder for PrimitiveValue {
+    fn encode<'a>(&self, env: Env<'a>) -> Term<'a> {
+        match self {
+            PrimitiveValue::UInt32(v) => v.encode(env),
+            PrimitiveValue::Float32(v) => v.encode(env),
+            PrimitiveValue::Utf8(v) => v.encode(env),
+        }
+    }
+}
+
+struct TableResource(Table<PrimitiveValue>);
 
 #[rustler::resource_impl]
 impl Resource for TableResource {}
 
 #[rustler::nif]
-fn setup<'a>(env: Env<'a>, values: Vec<u32>, weights: Vec<u64>) -> NifResult<Term<'a>> {
-    match Table::build(values, weights) {
+fn setup<'a>(env: Env<'a>, values: Term, weights: Vec<u64>) -> NifResult<Term<'a>> {
+    let iter: ListIterator = values.decode()?;
+    let vec: Vec<PrimitiveValue> = iter
+        .map(|x| {
+            if x.is_float() {
+                x.decode::<f32>().and_then(|i| NifResult::Ok(PrimitiveValue::Float32(i)))
+            } else if x.is_integer() {
+                x.decode::<u32>().and_then(|i| NifResult::Ok(PrimitiveValue::UInt32(i)))
+            } else if x.is_binary() {
+                x.decode::<String>().and_then(|i| NifResult::Ok(PrimitiveValue::Utf8(Some(i))))
+            } else {
+                NifResult::Ok(PrimitiveValue::Utf8(None))
+            }
+        })
+        .collect::<NifResult<Vec<PrimitiveValue>>>()?;
+
+    match Table::build(vec, weights) {
         Some(table) => Ok(ResourceArc::new(TableResource(table)).encode(env)),
         None => Err(RustlerError::BadArg),
     }
@@ -26,9 +59,9 @@ fn size(resource: ResourceArc<TableResource>) -> u32 {
 }
 
 #[rustler::nif]
-fn get(resource: ResourceArc<TableResource>, idx: u32, rng: f32) -> Result<u32, Atom> {
+fn get<'a>(env: Env<'a>, resource: ResourceArc<TableResource>, idx: u32, rng: f32) -> Result<Term<'a>, Atom> {
     match resource.0.get(idx, rng) {
-        Some(value) => Ok(value),
+        Some(value) => Ok(value.encode(env)),
         None => Err(atoms::index()),
     }
 }
@@ -42,8 +75,8 @@ fn index(resource: ResourceArc<TableResource>, idx: u32, rng: f32) -> Result<u32
 }
 
 #[rustler::nif]
-fn values(resource: ResourceArc<TableResource>) -> Vec<u32> {
-    resource.0.get_values()
+fn values(env: Env, resource: ResourceArc<TableResource>) -> Vec<Term> {
+    resource.0.get_values().into_iter().map(|x| x.encode(env)).collect()
 }
 
 #[rustler::nif]
