@@ -1,10 +1,30 @@
 defmodule WeightedList.MixProject do
   use Mix.Project
 
+  # git ls-files
+  @files ~w[
+    .formatter.exs
+    .gitignore
+    .tool-versions
+    Cargo.lock
+    Cargo.toml
+    README.md
+    lib/weighted_list.ex
+    lib/weighted_list/native.ex
+    mix.exs
+    mix.lock
+    native/weighted_list/Cargo.toml
+    native/weighted_list/README.md
+    native/weighted_list/src/lib.rs
+    native/weighted_list/src/table.rs
+    test/test_helper.exs
+    test/weighted_list_test.exs
+  ]
+
   def project do
     [
       app: :weighted_list,
-      version: "0.1.1",
+      version: "0.1.2",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       description: description(),
@@ -15,7 +35,7 @@ defmodule WeightedList.MixProject do
 
   defp package do
     [
-      files: files(),
+      files: @files,
       maintainers: ["Andrei Lepeshkin"],
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/undr/weighted_list"}
@@ -41,10 +61,5 @@ defmodule WeightedList.MixProject do
       {:rustler, "~> 0.36.2", runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
-  end
-
-  defp files do
-    {out, 0} = System.cmd("git", ["ls-files"])
-    String.split(out, "\n", trim: true)
   end
 end

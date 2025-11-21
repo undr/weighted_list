@@ -10,7 +10,7 @@ by adding `weighted_list` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:weighted_list, "~> 0.1.0"}
+    {:weighted_list, "~> 0.1.2"}
   ]
 end
 ```
